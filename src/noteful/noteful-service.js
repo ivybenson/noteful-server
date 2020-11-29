@@ -1,25 +1,25 @@
-const BookmarksService = {
-  getAllBookmarks(knex) {
-    return knex.select("*").from("bookmarks");
+const NotefulService = {
+  getAllFolders(knex) {
+    return knex.select("*").from("folders");
   },
   getById(knex, id) {
-    return knex.from("bookmarks").select("*").where("id", id).first();
+    return knex.from("folders").select("*").where("id", id).first();
   },
-  insertBookmark(knex, newBookmark) {
+  insertFolder(knex, newFolder) {
     return knex
-      .insert(newBookmark)
-      .into("bookmarks")
+      .insert(newFolder)
+      .into("folders")
       .returning("*")
       .then((rows) => {
         return rows[0];
       });
   },
-  deleteBookmark(knex, id) {
-    return knex("bookmarks").where({ id }).delete();
+  deleteFolder(knex, id) {
+    return knex("folders").where({ id }).delete();
   },
-  updateBookmark(knex, id, newBookmarkFields) {
-    return knex("bookmarks").where({ id }).update(newBookmarkFields);
+  updateFolder(knex, id, newFolderFields) {
+    return knex("folders").where({ id }).update(newFolderFields);
   },
 };
 
-module.exports = BookmarksService;
+module.exports = NotefulService;
