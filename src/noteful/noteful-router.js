@@ -1,25 +1,127 @@
-const NotefulService = {
-  getNotefulFolders(knex) {
-    return knex.select("*").from("folders");
-  },
-  getById(knex, id) {
-    return knex.from("folders").select("*").where("id", id).first();
-  },
-  insertNotefulFolders(knex, newNotefulFolders) {
-    return knex
-      .insert(newNotefulFolders)
-      .into("folders")
-      .returning("*")
-      .then((rows) => {
-        return rows[0];
-      });
-  },
-  deleteNotefulFolders(knex, id) {
-    return knex("folders").where({ id }).delete();
-  },
-  updateNotefulFolders(knex, id, newBookmarkFields) {
-    return knex("folders").where({ id }).update(newBookmarkFields);
-  },
-};
+const path = require("path");
+const express = require("express");
+const xss = require("xss");
+const logger = require("../logger");
+const NotefulService = require("./noteful-service");
+const { getBookmarkValidationError } = require("./noteful-validator");
 
-module.exports = NotefulService;
+const notefulRouter = express.Router();
+const bodyParser = express.json();
+
+const serializeFolders = (folder) => ({
+  id: folders.id,
+  name: xss(folders.name),
+});
+
+const serializeNotes = (notes) => ({
+  id: notes.id,
+  name: xss(notes.name),
+  timestamp: notes.timestamp,
+  folderid: xss(notes.folderid),
+  content: xss(notes.content),
+});
+
+notefulRouter
+  .route("/")
+
+  .get((req, res, next) => {
+    NotefulService.getAllBookmarks(req.app.get("db"))
+      .then((bookmarks) => {
+        res.json(bookmarks.map(serializeBookmark));
+      })
+      .catch(next);
+  })
+
+  .post(bodyParser, (req, res, next) => {
+    const { title, url, description, rating } = req.body;
+    const newBookmark = { title, url, description, rating };
+
+    for (const field of ["title", "url", "rating"]) {
+      if (!newBookmark[field]) {
+        logger.error(`${field} is required`);
+        return res.status(400).send({
+          error: { message: `'${field}' is required` },
+        });
+      }
+    }
+
+    const error = getBookmarkValidationError(newBookmark);
+
+    if (error) return res.status(400).send(error);
+
+    NotefulService.insertBookmark(req.app.get("db"), newBookmark)
+      .then((bookmark) => {
+        logger.info(`Bookmark with id ${bookmark.id} created.`);
+        res
+          .status(201)
+          .location(path.posix.join(req.originalUrl, `${bookmark.id}`))
+          .json(serializeBookmark(bookmark));
+      })
+      .catch(next);
+  });
+
+notefulRouter
+  .route("/:bookmark_id")
+
+  .all((req, res, next) => {
+    const { bookmark_id } = req.params;
+    NotefulService.getById(req.app.get("db"), bookmark_id)
+      .then((bookmark) => {
+        if (!bookmark) {
+          logger.error(`Bookmark with id ${bookmark_id} not found.`);
+          return res.status(404).json({
+            error: { message: `Bookmark Not Found` },
+          });
+        }
+
+        res.bookmark = bookmark;
+        next();
+      })
+      .catch(next);
+  })
+
+  .get((req, res) => {
+    res.json(serializeBookmark(res.bookmark));
+  })
+
+  .delete((req, res, next) => {
+    const { bookmark_id } = req.params;
+    NotefulService.deleteBookmark(req.app.get("db"), bookmark_id)
+      .then((numRowsAffected) => {
+        logger.info(`Bookmark with id ${bookmark_id} deleted.`);
+        res.status(204).end();
+      })
+      .catch(next);
+  })
+
+  .patch(bodyParser, (req, res, next) => {
+    const { title, url, description, rating } = req.body;
+    const bookmarkToUpdate = { title, url, description, rating };
+
+    const numberOfValues = Object.values(bookmarkToUpdate).filter(Boolean)
+      .length;
+    if (numberOfValues === 0) {
+      logger.error(`Invalid update without required fields`);
+      return res.status(400).json({
+        error: {
+          message: `Request body must content either 'title', 'url', 'description' or 'rating'`,
+        },
+      });
+    }
+
+    const error = getBookmarkValidationError(bookmarkToUpdate);
+
+    if (error) return res.status(400).send(error);
+
+    NotefulService.updateBookmark(
+      req.app.get("db"),
+      req.params.bookmark_id,
+      bookmarkToUpdate
+    )
+      .then((numRowsAffected) => {
+        res.status(204).end();
+      })
+      .catch(next);
+  });
+
+module.exports = notefulRouter;

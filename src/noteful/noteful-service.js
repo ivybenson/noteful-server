@@ -1,24 +1,45 @@
 const NotefulService = {
-  getAllFolders(knex) {
+  getNotefulFolders(knex) {
     return knex.select("*").from("folders");
   },
-  getById(knex, id) {
+  getNotefulNotes(knex) {
+    return knex.select("*").from("notes");
+  },
+  getFoldersById(knex, id) {
     return knex.from("folders").select("*").where("id", id).first();
   },
-  insertFolder(knex, newFolder) {
+  getNotesById(knex, id) {
+    return knex.from("notes").select("*").where("id", id).first();
+  },
+  insertNotefulFolders(knex, newNotefulFolders) {
     return knex
-      .insert(newFolder)
+      .insert(newNotefulFolders)
       .into("folders")
       .returning("*")
       .then((rows) => {
         return rows[0];
       });
   },
-  deleteFolder(knex, id) {
+  insertNotefulNotes(knex, newNotefulNotes) {
+    return knex
+      .insert(newNotefulNotes)
+      .into("folders")
+      .returning("*")
+      .then((rows) => {
+        return rows[0];
+      });
+  },
+  deleteNotefulFolders(knex, id) {
     return knex("folders").where({ id }).delete();
   },
-  updateFolder(knex, id, newFolderFields) {
-    return knex("folders").where({ id }).update(newFolderFields);
+  deleteNotefulNotes(knex, id) {
+    return knex("notes").where({ id }).delete();
+  },
+  updateNotefulFolders(knex, id, newFoldersFields) {
+    return knex("folders").where({ id }).update(newFoldersFields);
+  },
+  updateNotefulNotes(knex, id, newNotesFields) {
+    return knex("notes").where({ id }).update(newNotesFields);
   },
 };
 
