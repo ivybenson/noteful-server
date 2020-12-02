@@ -3,12 +3,12 @@ const express = require("express");
 const xss = require("xss");
 const logger = require("../logger");
 const NotefulService = require("./noteful-service");
-const { getBookmarkValidationError } = require("./noteful-validator");
+const { getNotefulValidationError } = require("./noteful-validator");
 
 const notefulRouter = express.Router();
 const bodyParser = express.json();
 
-const serializeFolders = (folder) => ({
+const serializeFolders = (folders) => ({
   id: folders.id,
   name: xss(folders.name),
 });
@@ -25,19 +25,27 @@ notefulRouter
   .route("/")
 
   .get((req, res, next) => {
-    NotefulService.getAllBookmarks(req.app.get("db"))
-      .then((bookmarks) => {
-        res.json(bookmarks.map(serializeBookmark));
+    NotefulService.getNotefulFolders(req.app.get("db"))
+      .then((folders) => {
+        res.json(folders.map(serializeFolders));
+      })
+      .catch(next);
+  })
+
+  .get((req, res, next) => {
+    NotefulService.getNotefulNotes(req.app.get("db"))
+      .then((notes) => {
+        res.json(notes.map(serializeNotes));
       })
       .catch(next);
   })
 
   .post(bodyParser, (req, res, next) => {
-    const { title, url, description, rating } = req.body;
-    const newBookmark = { title, url, description, rating };
+    const { name, content } = req.body;
+    const newNotes = { name, content };
 
-    for (const field of ["title", "url", "rating"]) {
-      if (!newBookmark[field]) {
+    for (const field of ["name", "content"]) {
+      if (!newNotes[field]) {
         logger.error(`${field} is required`);
         return res.status(400).send({
           error: { message: `'${field}' is required` },
@@ -45,78 +53,168 @@ notefulRouter
       }
     }
 
-    const error = getBookmarkValidationError(newBookmark);
+    const error = getNotefulValidationError(newNotes);
 
     if (error) return res.status(400).send(error);
 
-    NotefulService.insertBookmark(req.app.get("db"), newBookmark)
-      .then((bookmark) => {
-        logger.info(`Bookmark with id ${bookmark.id} created.`);
+    NotefulService.insertNotefulNotes(req.app.get("db"), newNotes)
+      .then((notes) => {
+        logger.info(`Note with id ${notes.id} created.`);
         res
           .status(201)
-          .location(path.posix.join(req.originalUrl, `${bookmark.id}`))
-          .json(serializeBookmark(bookmark));
+          .location(path.posix.join(req.originalUrl, `${notes.id}`))
+          .json(serializeNotes(notes));
       })
       .catch(next);
   });
 
+notefulRouter.post(bodyParser, (req, res, next) => {
+  const { name } = req.body;
+  const newFolders = { name };
+
+  for (const field of ["name"]) {
+    if (!newFolders[field]) {
+      logger.error(`${field} is required`);
+      return res.status(400).send({
+        error: { message: `'${field}' is required` },
+      });
+    }
+  }
+
+  const error = getNotefulValidationError(newFolders);
+
+  if (error) return res.status(400).send(error);
+
+  NotefulService.insertNotefulFolders(req.app.get("db"), newFolders)
+    .then((folders) => {
+      logger.info(`Note with id ${folders.id} created.`);
+      res
+        .status(201)
+        .location(path.posix.join(req.originalUrl, `${folders.id}`))
+        .json(serializeFolders(folders));
+    })
+    .catch(next);
+});
+
 notefulRouter
-  .route("/:bookmark_id")
+  .route("/:folderid")
 
   .all((req, res, next) => {
-    const { bookmark_id } = req.params;
-    NotefulService.getById(req.app.get("db"), bookmark_id)
-      .then((bookmark) => {
-        if (!bookmark) {
-          logger.error(`Bookmark with id ${bookmark_id} not found.`);
+    const { folderid } = req.params;
+    NotefulService.getFoldersById(req.app.get("db"), folderid)
+      .then((folders) => {
+        if (!folders) {
+          logger.error(`Folder with id ${folderid} not found.`);
           return res.status(404).json({
-            error: { message: `Bookmark Not Found` },
+            error: { message: `Folder Not Found` },
           });
         }
 
-        res.bookmark = bookmark;
+        res.folders = folders;
         next();
       })
       .catch(next);
   })
 
   .get((req, res) => {
-    res.json(serializeBookmark(res.bookmark));
+    res.json(serializeFolders(res.folders));
   })
 
   .delete((req, res, next) => {
-    const { bookmark_id } = req.params;
-    NotefulService.deleteBookmark(req.app.get("db"), bookmark_id)
+    const { folderid } = req.params;
+    NotefulService.deleteNotefulFolders(req.app.get("db"), folderid)
       .then((numRowsAffected) => {
-        logger.info(`Bookmark with id ${bookmark_id} deleted.`);
+        logger.info(`Folder with id ${folderid} deleted.`);
         res.status(204).end();
       })
       .catch(next);
   })
 
   .patch(bodyParser, (req, res, next) => {
-    const { title, url, description, rating } = req.body;
-    const bookmarkToUpdate = { title, url, description, rating };
+    const { name } = req.body;
+    const folderToUpdate = { name };
 
-    const numberOfValues = Object.values(bookmarkToUpdate).filter(Boolean)
-      .length;
+    const numberOfValues = Object.values(folderToUpdate).filter(Boolean).length;
     if (numberOfValues === 0) {
       logger.error(`Invalid update without required fields`);
       return res.status(400).json({
         error: {
-          message: `Request body must content either 'title', 'url', 'description' or 'rating'`,
+          message: `Request body must contain 'name'.`,
         },
       });
     }
 
-    const error = getBookmarkValidationError(bookmarkToUpdate);
+    const error = getNotefulValidationError(folderToUpdate);
 
     if (error) return res.status(400).send(error);
 
-    NotefulService.updateBookmark(
+    NotefulService.updateNotefulFolders(
       req.app.get("db"),
-      req.params.bookmark_id,
-      bookmarkToUpdate
+      req.params.folderid,
+      folderUpdate
+    )
+      .then((numRowsAffected) => {
+        res.status(204).end();
+      })
+      .catch(next);
+  });
+
+notefulRouter
+  .route("/:noteid")
+
+  .all((req, res, next) => {
+    const { id } = req.params;
+    NotefulService.getNotesById(req.app.get("db"), id)
+      .then((notes) => {
+        if (!notes) {
+          logger.error(`Note with id ${id} not found.`);
+          return res.status(404).json({
+            error: { message: `Note Not Found` },
+          });
+        }
+
+        res.notes = notes;
+        next();
+      })
+      .catch(next);
+  })
+
+  .get((req, res) => {
+    res.json(serializeNotes(res.notes));
+  })
+
+  .delete((req, res, next) => {
+    const { id } = req.params;
+    NotefulService.deleteNotefulNotes(req.app.get("db"), id)
+      .then((numRowsAffected) => {
+        logger.info(`Note with id ${id} deleted.`);
+        res.status(204).end();
+      })
+      .catch(next);
+  })
+
+  .patch(bodyParser, (req, res, next) => {
+    const { name, content } = req.body;
+    const noteToUpdate = { name, content };
+
+    const numberOfValues = Object.values(noteToUpdate).filter(Boolean).length;
+    if (numberOfValues === 0) {
+      logger.error(`Invalid update without required fields`);
+      return res.status(400).json({
+        error: {
+          message: `Request body must contain 'name' and 'content'.`,
+        },
+      });
+    }
+
+    const error = getNotefulValidationError(noteToUpdate);
+
+    if (error) return res.status(400).send(error);
+
+    NotefulService.updateNotefulNotes(
+      req.app.get("db"),
+      req.params.id,
+      noteToUpdate
     )
       .then((numRowsAffected) => {
         res.status(204).end();
