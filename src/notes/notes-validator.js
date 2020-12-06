@@ -3,7 +3,7 @@ const logger = require("../logger");
 
 const NO_ERRORS = null;
 
-function getNotefulValidationError({ url }) {
+function getNotesValidationError({ url }) {
   if (url && !isWebUri(url)) {
     logger.error(`Invalid url '${url}' supplied`);
     return {
@@ -17,5 +17,5 @@ function getNotefulValidationError({ url }) {
 }
 
 module.exports = {
-  getNotefulValidationError,
+  getNotesValidationError,
 };
