@@ -1,5 +1,5 @@
 const NotesService = {
-  getNotes(knex) {
+  getAllNotes(knex) {
     return knex.select("*").from("notes");
   },
 
