@@ -31,7 +31,7 @@ notesRouter
     const { id, name, timestamp, folderid, content } = req.body;
     const newNote = { id, name, timestamp, folderid, content };
 
-    for (const field of ["title", "url", "rating"]) {
+    for (const field of ["name", "content", "folderid"]) {
       if (!newNote[field]) {
         logger.error(`${field} is required`);
         return res.status(400).send({
