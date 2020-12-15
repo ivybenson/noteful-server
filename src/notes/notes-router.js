@@ -28,7 +28,7 @@ notesRouter
   })
 
   .post(bodyParser, (req, res, next) => {
-    const { id, name, timestamp, folderid, content } = req.body;
+    const { name, folderid, content } = req.body;
     const newNote = { name, content, folderid };
 
     for (const field of ["name", "content", "folderid"]) {
