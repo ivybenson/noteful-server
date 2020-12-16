@@ -60,7 +60,7 @@ notesRouter
 
   .all((req, res, next) => {
     const { note_id } = req.params;
-    NotesService.getById(req.app.get("db"), note_id)
+    NotesService.getNoteById(req.app.get("db"), note_id)
       .then((note) => {
         if (!note) {
           logger.error(`Note with id ${note_id} not found.`);
